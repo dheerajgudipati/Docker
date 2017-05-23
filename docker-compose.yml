@@ -1,0 +1,41 @@
+version: '2'
+services:
+  db:
+    build: mydb
+    environment:
+      MYSQL_ROOT_PASSWORD: nimda
+      MYSQL_DATABASE: example_db
+      MYSQL_USER: example_db_user
+      MYSQL_PASSWORD: example_db_pass
+    volumes:
+      - "./db:/docker-entrypoint-initdb.d"
+
+  # First node of the first Tomcat virtual host.
+  web:
+    build: app
+    # Environment variables do not appear to be getting loaded the first time Tomcat starts!
+    environment:
+      VIRTUAL_HOST: localhost
+      VIRTUAL_PORT: 8080
+      JDBC_URL: jdbc:mysql://db:3306/example_db?connectTimeout=0&amp;socketTimeout=0&amp;autoReconnect=true
+      JDBC_USER: example_db_user
+      JDBC_PASS: example_db_pass
+    volumes:
+      - "./tomcat/webapps:/usr/local/tomcat/webapps"
+    links:
+      - db
+
+  # nginx container that automatically creates a load balancer / reverse proxy across the 3 tomcat containers / 2 virtual hosts.
+  nginx:
+    build: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - "/var/run/docker.sock:/tmp/docker.sock:ro"
+    links:
+      - web
+      
+networks:
+  default:
+    external:
+      name: nginx-proxy
